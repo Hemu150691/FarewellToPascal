@@ -125,6 +125,8 @@
         // State for new message placement
         let newX = 0;
         let newY = 0;
+        
+        const LOCAL_STORAGE_KEY = 'globalCardMessages'; // Key for local storage persistence
 
         // DOM Elements
         const mapContainer = document.getElementById('map-container');
@@ -143,19 +145,71 @@
 
         // Set Firebase logging level to debug
         setLogLevel('debug');
+        
+        // --- LOCAL STORAGE FUNCTIONS (for Offline Mode) ---
+        function loadLocalMessages() {
+            try {
+                const storedMessages = localStorage.getItem(LOCAL_STORAGE_KEY);
+                const messages = storedMessages ? JSON.parse(storedMessages) : [];
+                messageCount = messages.length;
+                renderBubbles(messages);
+                loadingOverlay.classList.add('hidden');
+
+                if (messageCount >= 50) {
+                    cardFullMessage.classList.remove('hidden');
+                    instruction.textContent = "The card is now full! You can read all the wishes below.";
+                } else {
+                    cardFullMessage.classList.add('hidden');
+                    instruction.textContent = `Click anywhere on the map below to leave a personalized message (${messageCount}/50 spots filled).`;
+                }
+
+            } catch (error) {
+                console.error("Error loading messages from local storage:", error);
+                localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear corrupted storage
+            }
+        }
+
+        function saveLocalMessage(name, content, x, y) {
+            const storedMessages = localStorage.getItem(LOCAL_STORAGE_KEY);
+            let messages = storedMessages ? JSON.parse(storedMessages) : [];
+            
+            const newMessage = {
+                id: Date.now(), 
+                name: name, 
+                message: content, 
+                x: x, 
+                y: y,
+                timestamp: Date.now()
+            };
+
+            messages.push(newMessage);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(messages));
+            
+            // Re-render all messages to include the new one
+            messageCount = messages.length;
+            renderBubbles(messages);
+            
+            // Update instruction count
+            if (messageCount >= 50) {
+                cardFullMessage.classList.remove('hidden');
+                instruction.textContent = "The card is now full! You can read all the wishes below.";
+            } else {
+                cardFullMessage.classList.add('hidden');
+                instruction.textContent = `Click anywhere on the map below to leave a personalized message (${messageCount}/50 spots filled).`;
+            }
+        }
 
 
         // --- FIREBASE INITIALIZATION & AUTHENTICATION ---
         async function initializeFirebase() {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
-                    // This block executes when running on GitHub Pages where __firebase_config is not set.
-                    // We switch to a temporary, non-saving "Offline Mode" to allow the UI to function.
-                    console.error("Firebase config is missing. Database features disabled. Running in OFFLINE MODE.");
+                    // Running in OFFLINE MODE (GitHub Pages hosting)
+                    console.warn("Firebase config is missing. Database features disabled. Running in OFFLINE MODE with Local Storage persistence.");
                     authStatusSpan.textContent = "Offline Mode";
                     userIdSpan.textContent = "N/A";
                     isAuthReady = true; 
-                    loadingOverlay.classList.add('hidden');
+                    loadLocalMessages(); // Load locally saved messages
                     return;
                 }
 
@@ -181,7 +235,6 @@
                         userIdSpan.textContent = userId;
                         authStatusSpan.textContent = "Authenticated";
                     } else {
-                        // This should not happen if sign-in was successful
                         console.error("User is signed out.");
                         userId = 'unauthenticated';
                         userIdSpan.textContent = userId;
@@ -195,6 +248,8 @@
             } catch (error) {
                 console.error("Firebase Initialization or Auth Failed:", error);
                 authStatusSpan.textContent = `Error: ${error.code}`;
+                isAuthReady = true;
+                loadingOverlay.classList.add('hidden');
             }
         }
 
@@ -242,25 +297,12 @@
         async function saveMessage(name, content, x, y) {
             // Only try to save if the database is available (i.e., db is not null)
             if (!db) {
-                // In Offline Mode, we show the message locally but don't save to the cloud.
-                alert("Message posted locally! Note: In 'Offline Mode', messages are NOT saved permanently for others to see. Please fix your hosting to use Firebase.");
-                
-                // Simulate saving by immediately rendering the message
-                const tempMsg = {
-                    id: Math.random(), 
-                    name: name, 
-                    message: content, 
-                    x: x, 
-                    y: y
-                };
-                
-                // Fetch current messages (if any) and add the new one
-                const currentMessages = Array.from(messageArea.children).map(el => JSON.parse(el.dataset.msg));
-                currentMessages.push(tempMsg);
-                renderBubbles(currentMessages);
-
+                // OFFLINE MODE: Save to local storage for persistence for this user only
+                saveLocalMessage(name, content, x, y);
                 return;
             }
+            
+            // ONLINE MODE: Save to Firebase for multi-user sharing
             try {
                 const docRef = await addDoc(getMessagesCollectionRef(), {
                     name: name,
