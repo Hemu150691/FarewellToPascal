@@ -34,14 +34,15 @@
         </div>
 
         <!-- Map Container -->
+        <!-- FIX: Using relative path 'World map.png' now -->
         <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] bg-gray-200 rounded-xl shadow-2xl overflow-hidden cursor-pointer border-4 border-gray-300 transition-all duration-300 hover:border-blue-400" 
-             style="background-image: url('https://private-user-images.githubusercontent.com/16072112/502967833-92cd7b66-9996-4423-b921-39d1a80c3fb3.png'); background-size: cover; background-position: center; max-height: 80vh;">
+             style="background-image: url('World map.png'); background-size: cover; background-position: center; max-height: 80vh;">
             
             <!-- DEBUGGING OVERLAY: Placeholder for image error -->
             <div id="image-error-overlay" class="absolute inset-0 bg-red-100/80 hidden items-center justify-center z-30 p-4">
                 <p class="text-xl font-bold text-red-700 text-center">
                     ❌ ERROR: Image URL Missing ❌<br>
-                    Please edit the code (Line 40) and replace the placeholder with your actual public image link.
+                    The code is looking for a file named 'World map.png' in your repository.
                 </p>
             </div>
             
@@ -115,7 +116,7 @@
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
-        let db;
+        let db = null; // Set to null initially
         let auth;
         let userId = null;
         let isAuthReady = false;
@@ -137,6 +138,8 @@
         const authStatusSpan = document.getElementById('auth-status');
         const instruction = document.getElementById('instruction');
         const downloadButton = document.getElementById('download-button');
+        const imageErrorOverlay = document.getElementById('image-error-overlay');
+
 
         // Set Firebase logging level to debug
         setLogLevel('debug');
@@ -146,11 +149,13 @@
         async function initializeFirebase() {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
-                    // This block executes if you run the code outside the Canvas environment (e.g., on GitHub Pages).
-                    // We allow the UI to function but skip database operations.
-                    console.error("Firebase config is missing. Database features disabled.");
+                    // This block executes when running on GitHub Pages where __firebase_config is not set.
+                    // We switch to a temporary, non-saving "Offline Mode" to allow the UI to function.
+                    console.error("Firebase config is missing. Database features disabled. Running in OFFLINE MODE.");
                     authStatusSpan.textContent = "Offline Mode";
+                    userIdSpan.textContent = "N/A";
                     isAuthReady = true; 
+                    loadingOverlay.classList.add('hidden');
                     return;
                 }
 
@@ -176,7 +181,7 @@
                         userIdSpan.textContent = userId;
                         authStatusSpan.textContent = "Authenticated";
                     } else {
-                        // This should not happen if sign-in was successful, but handle it
+                        // This should not happen if sign-in was successful
                         console.error("User is signed out.");
                         userId = 'unauthenticated';
                         userIdSpan.textContent = userId;
@@ -203,9 +208,6 @@
         function startMessageListener() {
             if (!isAuthReady || !db) return;
 
-            // Query to get all messages, sorted by timestamp
-            // NOTE: Firestore recommends avoiding orderBy unless necessary to prevent index issues. 
-            // We will sort in-memory based on timestamp after fetching.
             const messagesQuery = query(getMessagesCollectionRef());
 
             onSnapshot(messagesQuery, (snapshot) => {
@@ -238,9 +240,25 @@
         }
 
         async function saveMessage(name, content, x, y) {
-            // Only try to save if the database is available
+            // Only try to save if the database is available (i.e., db is not null)
             if (!db) {
-                alert("Cannot save message. The database is not connected (running in offline mode).");
+                // In Offline Mode, we show the message locally but don't save to the cloud.
+                alert("Message posted locally! Note: In 'Offline Mode', messages are NOT saved permanently for others to see. Please fix your hosting to use Firebase.");
+                
+                // Simulate saving by immediately rendering the message
+                const tempMsg = {
+                    id: Math.random(), 
+                    name: name, 
+                    message: content, 
+                    x: x, 
+                    y: y
+                };
+                
+                // Fetch current messages (if any) and add the new one
+                const currentMessages = Array.from(messageArea.children).map(el => JSON.parse(el.dataset.msg));
+                currentMessages.push(tempMsg);
+                renderBubbles(currentMessages);
+
                 return;
             }
             try {
@@ -255,7 +273,7 @@
                 console.log("Document written with ID: ", docRef.id);
             } catch (e) {
                 console.error("Error adding document: ", e);
-                // In a real app, show a user-friendly error modal here
+                alert(`Error saving message: ${e.message}`);
             }
         }
 
@@ -265,27 +283,24 @@
             messageArea.innerHTML = ''; // Clear existing bubbles
 
             messages.forEach((msg, index) => {
-                // Ensure coordinates are numbers between 0 and 100
                 const x = parseFloat(msg.x);
                 const y = parseFloat(msg.y);
                 
-                // Truncate message for display
                 const displayMessage = msg.message.length > 50 
                                      ? msg.message.substring(0, 50) + '...' 
                                      : msg.message;
                 
-                // Determine color based on index or userId (simple styling)
                 const colorClass = ['bg-yellow-300', 'bg-blue-300', 'bg-green-300', 'bg-pink-300'][index % 4];
                 
-                // Create the bubble element
                 const bubble = document.createElement('div');
                 
-                // Position the bubble using the normalized coordinates.
-                // Subtracting 50% from both top/left centers the bubble point on the click location.
                 bubble.className = `message-bubble absolute p-2 rounded-xl shadow-lg border border-gray-500 max-w-[150px] transition-all duration-300 hover:z-10 hover:shadow-xl hover:scale-[1.05] ${colorClass}/85`;
                 bubble.style.left = `${x}%`;
                 bubble.style.top = `${y}%`;
                 bubble.style.transform = 'translate(-50%, -50%)'; 
+                
+                // Store the full message data on the element for offline mode re-rendering
+                bubble.dataset.msg = JSON.stringify(msg);
 
                 bubble.innerHTML = `
                     <p class="font-bold text-gray-800 text-sm mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
@@ -300,7 +315,6 @@
         
         // Expose function globally for the 'Read All' button
         window.showFullMessage = (id, name, message) => {
-            // Note: Using a custom modal is preferable, but sticking to alert for simplicity here
             alert(`From: ${name}\n\nMessage:\n${message}`);
         };
 
@@ -308,14 +322,23 @@
         // --- EVENT LISTENERS ---
 
         // 0. VISUAL DEBUGGING CHECK
-        const imageErrorOverlay = document.getElementById('image-error-overlay');
         const backgroundImageStyle = mapContainer.style.backgroundImage;
         
-        if (backgroundImageStyle && backgroundImageStyle.includes('PASTE_YOUR_PUBLIC_IMAGE_URL_HERE_FROM_GITHUB')) {
-             imageErrorOverlay.classList.remove('hidden');
-             imageErrorOverlay.classList.add('flex');
-        } else {
+        // Check if the image style explicitly references the filename (World map.png).
+        // If it does, the overlay should be hidden.
+        if (!backgroundImageStyle.includes('World map.png') && backgroundImageStyle.includes('url')) {
+             // If the link is NOT 'World map.png' AND it's not the placeholder (which it shouldn't be here)
+             // This is a complex check, but for simplicity, we just check the placeholder.
+             // If the code still has the placeholder, show the error.
+             if (backgroundImageStyle.includes('PASTE_YOUR_PUBLIC_IMAGE_URL_HERE_FROM_GITHUB')) {
+                 imageErrorOverlay.classList.remove('hidden');
+                 imageErrorOverlay.classList.add('flex');
+                 mapContainer.style.cursor = 'not-allowed';
+             }
+        } else if (backgroundImageStyle.includes('World map.png')) {
+             // If the image is the relative file path, assume the file is present and enable interaction.
              imageErrorOverlay.classList.add('hidden');
+             mapContainer.style.cursor = 'pointer';
         }
 
 
@@ -332,7 +355,6 @@
             }
 
             // Generate random coordinates between 5% and 95% 
-            // This prevents the bubble from being cut off at the very edge of the container
             newX = 5 + (Math.random() * 90); 
             newY = 5 + (Math.random() * 90); 
             
@@ -347,7 +369,6 @@
             event.preventDefault();
 
             if (!isAuthReady) {
-                // Should only happen in Canvas when initialization is slow, or in Offline Mode
                 alert("Please wait for initialization to complete before sending.");
                 return;
             }
@@ -372,15 +393,13 @@
             messageForm.reset();
         });
         
-        // 4. DOWNLOAD FUNCTIONALITY
+        // 4. DOWNLOAD FUNCTIONALITY (No changes here, it uses the canvas)
         downloadButton.addEventListener('click', async () => {
-            // Check if the HTML2Canvas library is loaded
             if (typeof html2canvas === 'undefined') {
                 alert("Image capture tool not loaded. Please try again.");
                 return;
             }
             
-            // Temporarily hide elements that shouldn't be in the final image
             const elementsToHide = [document.getElementById('user-info'), instruction, downloadButton];
             const originalDisplays = elementsToHide.map(el => el.style.display);
             elementsToHide.forEach(el => el.style.display = 'none');
@@ -388,16 +407,13 @@
             const wasCardFull = cardFullMessage.classList.contains('flex');
             cardFullMessage.style.display = 'none';
 
-            // Use html2canvas to take a screenshot of the map container
             const canvas = await html2canvas(mapContainer, {
-                useCORS: true, // Necessary to handle the background image
+                useCORS: true, 
                 backgroundColor: null 
             });
 
-            // Convert canvas to a data URL
             const image = canvas.toDataURL('image/png');
 
-            // Create a temporary link element to trigger the download
             const link = document.createElement('a');
             link.href = image;
             link.download = 'Global_Greeting_Card.png';
@@ -405,7 +421,6 @@
             link.click();
             document.body.removeChild(link);
 
-            // Restore the temporarily hidden elements
             elementsToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
             if (wasCardFull) {
                 cardFullMessage.classList.add('flex');
