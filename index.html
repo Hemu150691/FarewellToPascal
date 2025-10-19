@@ -8,12 +8,27 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load html2canvas for image download -->
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-    <!-- Load Inter font family -->
+    <!-- Load Inter and Sacramento (Cursive) font families -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Sacramento&display=swap');
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f7f8f9;
+        }
+        /* Custom class for Cursive Text */
+        .cursive-text {
+            font-family: 'Sacramento', cursive;
+            font-size: 1.1em; /* Slightly larger for better readability */
+            color: #333;
+        }
+        /* Custom class for Transparent Bubble */
+        .transparent-bubble {
+            background-color: rgba(255, 255, 255, 0.7); /* Semi-transparent white */
+            border: 1px solid #333; /* Dark border for definition */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4); 
+        }
+        .transparent-bubble:hover {
+            background-color: rgba(255, 255, 255, 0.9); /* Slightly brighter on hover */
         }
     </style>
 </head>
@@ -206,7 +221,7 @@
                 if (Object.keys(firebaseConfig).length === 0) {
                     // Running in OFFLINE MODE (GitHub Pages hosting)
                     console.warn("Firebase config is missing. Database features disabled. Running in OFFLINE MODE with Local Storage persistence.");
-                    authStatusSpan.textContent = "Offline Mode";
+                    authStatusSpan.textContent = "Offline Mode (Local Save Only)"; 
                     userIdSpan.textContent = "N/A";
                     isAuthReady = true; 
                     loadLocalMessages(); // Load locally saved messages
@@ -332,11 +347,10 @@
                                      ? msg.message.substring(0, 50) + '...' 
                                      : msg.message;
                 
-                const colorClass = ['bg-yellow-300', 'bg-blue-300', 'bg-green-300', 'bg-pink-300'][index % 4];
-                
+                // --- MODIFIED: Uses 'transparent-bubble' class for styling ---
                 const bubble = document.createElement('div');
                 
-                bubble.className = `message-bubble absolute p-2 rounded-xl shadow-lg border border-gray-500 max-w-[150px] transition-all duration-300 hover:z-10 hover:shadow-xl hover:scale-[1.05] ${colorClass}/85`;
+                bubble.className = `message-bubble absolute p-2 rounded-xl shadow-lg border border-gray-500 max-w-[150px] transition-all duration-300 hover:z-10 hover:shadow-xl hover:scale-[1.05] transparent-bubble`;
                 bubble.style.left = `${x}%`;
                 bubble.style.top = `${y}%`;
                 bubble.style.transform = 'translate(-50%, -50%)'; 
@@ -344,9 +358,10 @@
                 // Store the full message data on the element for offline mode re-rendering
                 bubble.dataset.msg = JSON.stringify(msg);
 
+                // --- MODIFIED: Added 'cursive-text' class to message content ---
                 bubble.innerHTML = `
                     <p class="font-bold text-gray-800 text-sm mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
-                    <p class="text-xs text-gray-700 leading-tight">${displayMessage}</p>
+                    <p class="text-xs text-gray-700 leading-tight cursive-text">${displayMessage}</p> 
                     <button onclick="window.showFullMessage('${msg.id}', '${msg.name}', \`${msg.message.replace(/`/g, '\\`')}\`)" 
                             class="mt-1 text-xs text-blue-800 hover:underline">Read All</button>
                 `;
@@ -411,7 +426,8 @@
             event.preventDefault();
 
             if (!isAuthReady) {
-                alert("Please wait for initialization to complete before sending.");
+                // The isAuthReady check should be true in Offline Mode, but we keep it here for safety.
+                console.error("App not ready yet.");
                 return;
             }
 
