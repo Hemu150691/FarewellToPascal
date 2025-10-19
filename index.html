@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Greeting Card</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load html2canvas for image download -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <!-- Load Inter font family -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f8f9;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Card Container -->
+    <div id="card-wrapper" class="min-h-screen flex flex-col items-center justify-center p-4">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 mb-2">
+            Send Warm Wishes Across the World
+        </h1>
+        <p id="instruction" class="text-lg text-gray-600 mb-6 text-center">
+            Click anywhere on the map below to leave a personalized message (Limit: 50 spots).
+        </p>
+        
+        <!-- User ID Display (MANDATORY for collaboration) -->
+        <div id="user-info" class="text-sm text-gray-500 mb-4 bg-gray-100 p-2 rounded-lg shadow-inner">
+            <span id="auth-status">Initializing...</span> | User ID: <span id="user-id">Loading...</span>
+        </div>
+
+        <!-- Map Container -->
+        <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] bg-gray-200 rounded-xl shadow-2xl overflow-hidden cursor-pointer border-4 border-gray-300 transition-all duration-300 hover:border-blue-400" 
+             style="background-image: url('World map.png'); background-size: cover; background-position: center; max-height: 80vh;">
+            
+            <!-- Dynamic Message Bubbles Area -->
+            <div id="message-area" class="absolute inset-0">
+                <!-- Bubbles will be injected here -->
+            </div>
+            
+            <!-- Loading Overlay -->
+            <div id="loading-overlay" class="absolute inset-0 bg-white/70 flex items-center justify-center z-20 transition-opacity duration-300">
+                <div class="flex flex-col items-center">
+                    <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2 text-blue-600 font-semibold">Loading messages...</p>
+                </div>
+            </div>
+
+            <!-- Card Full Message -->
+            <div id="card-full-message" class="hidden absolute inset-0 bg-red-100/80 flex items-center justify-center z-10 p-4">
+                <p class="text-3xl font-bold text-red-700">🎉 Card Full! (50/50 messages placed) 🎉</p>
+            </div>
+        </div>
+        
+        <!-- Download Button -->
+        <button id="download-button" class="mt-8 px-6 py-3 bg-red-600 text-white font-bold rounded-lg shadow-lg hover:bg-red-700 transition duration-150">
+            Download Final Card Image (PNG)
+        </button>
+
+    </div>
+
+    <!-- Message Input Modal -->
+    <div id="message-modal" class="fixed inset-0 bg-gray-900 bg-opacity-70 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Leave a Warm Wish</h2>
+            
+            <!-- Coordinate Display (Hidden, for debugging/clarity) -->
+            <p class="text-sm text-gray-500 mb-4 hidden">Placing message at: <span id="coords-display"></span></p>
+
+            <form id="message-form">
+                <div class="mb-4">
+                    <label for="input-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                    <input type="text" id="input-name" required maxlength="25"
+                           class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm"
+                           placeholder="Enter your name">
+                </div>
+                <div class="mb-6">
+                    <label for="input-message" class="block text-sm font-medium text-gray-700 mb-1">Your Message (Max 150 chars)</label>
+                    <textarea id="input-message" rows="4" required maxlength="150"
+                              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm"
+                              placeholder="Type your heartfelt greeting here..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancel-button" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition duration-150">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition duration-150 shadow-md">Send Message</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Load Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, query, orderBy, limit, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // IMPORTANT: Global variables are provided by the canvas environment.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+        let messageCount = 0;
+        
+        // State for new message placement
+        let newX = 0;
+        let newY = 0;
+
+        // DOM Elements
+        const mapContainer = document.getElementById('map-container');
+        const messageArea = document.getElementById('message-area');
+        const messageModal = document.getElementById('message-modal');
+        const messageForm = document.getElementById('message-form');
+        const cancelButton = document.getElementById('cancel-button');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const cardFullMessage = document.getElementById('card-full-message');
+        const userIdSpan = document.getElementById('user-id');
+        const authStatusSpan = document.getElementById('auth-status');
+        const instruction = document.getElementById('instruction');
+        const downloadButton = document.getElementById('download-button');
+
+        // Set Firebase logging level to debug
+        setLogLevel('debug');
+
+
+        // --- FIREBASE INITIALIZATION & AUTHENTICATION ---
+        async function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase config is missing. Cannot initialize Firestore.");
+                    authStatusSpan.textContent = "Error: Config Missing";
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                authStatusSpan.textContent = "Connecting...";
+
+                // Sign in using the custom token or anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                    console.log("Signed in with custom token.");
+                } else {
+                    await signInAnonymously(auth);
+                    console.log("Signed in anonymously.");
+                }
+
+                // Set up the Auth state listener
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdSpan.textContent = userId;
+                        authStatusSpan.textContent = "Authenticated";
+                    } else {
+                        // This should not happen if sign-in was successful, but handle it
+                        console.error("User is signed out.");
+                        userId = 'unauthenticated';
+                        userIdSpan.textContent = userId;
+                        authStatusSpan.textContent = "Unauthenticated";
+                    }
+                    isAuthReady = true;
+                    // Start the real-time listener only once authentication is ready
+                    startMessageListener(); 
+                });
+
+            } catch (error) {
+                console.error("Firebase Initialization or Auth Failed:", error);
+                authStatusSpan.textContent = `Error: ${error.code}`;
+            }
+        }
+
+        // --- FIRESTORE FUNCTIONS ---
+        
+        function getMessagesCollectionRef() {
+             // Public collection path: /artifacts/{appId}/public/data/messages
+            return collection(db, `artifacts/${appId}/public/data/messages`);
+        }
+
+        function startMessageListener() {
+            if (!isAuthReady || !db) return;
+
+            // Query to get all messages, sorted by timestamp
+            // NOTE: Firestore recommends avoiding orderBy unless necessary to prevent index issues. 
+            // We will sort in-memory based on timestamp after fetching.
+            const messagesQuery = query(getMessagesCollectionRef());
+
+            onSnapshot(messagesQuery, (snapshot) => {
+                loadingOverlay.classList.add('hidden');
+                
+                const messages = [];
+                snapshot.forEach(doc => {
+                    messages.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Sort messages in memory (by timestamp, newest first)
+                messages.sort((a, b) => b.timestamp - a.timestamp); 
+                
+                messageCount = messages.length;
+                
+                if (messageCount >= 50) {
+                    cardFullMessage.classList.remove('hidden');
+                    instruction.textContent = "The card is now full! You can read all the wishes below.";
+                } else {
+                    cardFullMessage.classList.add('hidden');
+                    instruction.textContent = `Click anywhere on the map below to leave a personalized message (${messageCount}/50 spots filled).`;
+                }
+
+                renderBubbles(messages);
+
+            }, (error) => {
+                console.error("Error fetching documents:", error);
+                loadingOverlay.innerHTML = `<p class="text-red-600 font-semibold">Error loading messages. Check console.</p>`;
+            });
+        }
+
+        async function saveMessage(name, content, x, y) {
+            try {
+                const docRef = await addDoc(getMessagesCollectionRef(), {
+                    name: name,
+                    message: content,
+                    x: x, // Normalized X position (0-100)
+                    y: y, // Normalized Y position (0-100)
+                    timestamp: Date.now(),
+                    userId: userId 
+                });
+                console.log("Document written with ID: ", docRef.id);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                // In a real app, show a user-friendly error modal here
+            }
+        }
+
+        // --- UI RENDERING ---
+
+        function renderBubbles(messages) {
+            messageArea.innerHTML = ''; // Clear existing bubbles
+
+            messages.forEach((msg, index) => {
+                // Ensure coordinates are numbers between 0 and 100
+                const x = parseFloat(msg.x);
+                const y = parseFloat(msg.y);
+                
+                // Truncate message for display
+                const displayMessage = msg.message.length > 50 
+                                     ? msg.message.substring(0, 50) + '...' 
+                                     : msg.message;
+                
+                // Determine color based on index or userId (simple styling)
+                const colorClass = ['bg-yellow-300', 'bg-blue-300', 'bg-green-300', 'bg-pink-300'][index % 4];
+                
+                // Create the bubble element
+                const bubble = document.createElement('div');
+                
+                // Position the bubble using the normalized coordinates.
+                // Subtracting 50% from both top/left centers the bubble point on the click location.
+                bubble.className = `message-bubble absolute p-2 rounded-xl shadow-lg border border-gray-500 max-w-[150px] transition-all duration-300 hover:z-10 hover:shadow-xl hover:scale-[1.05] ${colorClass}/85`;
+                bubble.style.left = `${x}%`;
+                bubble.style.top = `${y}%`;
+                bubble.style.transform = 'translate(-50%, -50%)'; 
+
+                bubble.innerHTML = `
+                    <p class="font-bold text-gray-800 text-sm mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
+                    <p class="text-xs text-gray-700 leading-tight">${displayMessage}</p>
+                    <button onclick="window.showFullMessage('${msg.id}', '${msg.name}', \`${msg.message.replace(/`/g, '\\`')}\`)" 
+                            class="mt-1 text-xs text-blue-800 hover:underline">Read All</button>
+                `;
+                
+                messageArea.appendChild(bubble);
+            });
+        }
+        
+        // Expose function globally for the 'Read All' button
+        window.showFullMessage = (id, name, message) => {
+            // Note: Using a custom modal is preferable, but sticking to alert for simplicity here
+            alert(`From: ${name}\n\nMessage:\n${message}`);
+        };
+
+
+        // --- EVENT LISTENERS ---
+
+        // 1. Handle click on the map to determine placement (NOW RANDOMIZED)
+        mapContainer.addEventListener('click', (event) => {
+            if (messageCount >= 50) {
+                // Don't open modal if card is full
+                return;
+            }
+
+            // Generate random coordinates between 5% and 95% 
+            // This prevents the bubble from being cut off at the very edge of the container
+            newX = 5 + (Math.random() * 90); 
+            newY = 5 + (Math.random() * 90); 
+            
+            // Show the modal
+            messageModal.classList.remove('hidden');
+            messageModal.classList.add('flex');
+            document.getElementById('input-name').focus();
+        });
+
+        // 2. Handle form submission
+        messageForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            if (!isAuthReady) {
+                alert("Please wait for authentication to complete.");
+                return;
+            }
+
+            const name = document.getElementById('input-name').value.trim();
+            const content = document.getElementById('input-message').value.trim();
+
+            if (name && content) {
+                saveMessage(name, content, newX, newY);
+                
+                // Hide and reset modal
+                messageModal.classList.remove('flex');
+                messageModal.classList.add('hidden');
+                messageForm.reset();
+            }
+        });
+
+        // 3. Handle modal cancellation
+        cancelButton.addEventListener('click', () => {
+            messageModal.classList.remove('flex');
+            messageModal.classList.add('hidden');
+            messageForm.reset();
+        });
+        
+        // 4. DOWNLOAD FUNCTIONALITY
+        downloadButton.addEventListener('click', async () => {
+            // Check if the HTML2Canvas library is loaded
+            if (typeof html2canvas === 'undefined') {
+                alert("Image capture tool not loaded. Please try again.");
+                return;
+            }
+            
+            // Temporarily hide elements that shouldn't be in the final image
+            const elementsToHide = [document.getElementById('user-info'), instruction, downloadButton];
+            const originalDisplays = elementsToHide.map(el => el.style.display);
+            elementsToHide.forEach(el => el.style.display = 'none');
+            
+            const wasCardFull = cardFullMessage.classList.contains('flex');
+            cardFullMessage.style.display = 'none';
+
+            // Use html2canvas to take a screenshot of the map container
+            const canvas = await html2canvas(mapContainer, {
+                useCORS: true, // Necessary to handle the background image
+                backgroundColor: null 
+            });
+
+            // Convert canvas to a data URL
+            const image = canvas.toDataURL('image/png');
+
+            // Create a temporary link element to trigger the download
+            const link = document.createElement('a');
+            link.href = image;
+            link.download = 'Global_Greeting_Card.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Restore the temporarily hidden elements
+            elementsToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
+            if (wasCardFull) {
+                cardFullMessage.classList.add('flex');
+                cardFullMessage.classList.remove('hidden');
+            }
+            
+            alert("Your final greeting card image has been downloaded!");
+        });
+
+        // 5. Start the app
+        initializeFirebase();
+
+    </script>
+
+</body>
+</html>
