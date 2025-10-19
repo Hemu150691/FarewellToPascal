@@ -8,12 +8,20 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load html2canvas for image download -->
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-    <!-- Load Inter and Sacramento (Cursive) font families -->
+    <!-- Load Inter, Sacramento (Cursive), and Caveat (Signature) font families -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Sacramento&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Sacramento&family=Caveat:wght@700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f7f8f9;
+        }
+        /* Custom class for Signature Name */
+        .signature-name {
+            font-family: 'Caveat', cursive; /* Use Caveat font for signature look */
+            font-size: 1.3em; /* Larger size to stand out */
+            font-weight: 700; /* Bold */
+            color: #1a1a1a; /* Very dark color for emphasis */
+            line-height: 1.1;
         }
         /* Custom class for Cursive Text */
         .cursive-text {
@@ -358,9 +366,9 @@
                 // Store the full message data on the element for offline mode re-rendering
                 bubble.dataset.msg = JSON.stringify(msg);
 
-                // --- MODIFIED: Added 'cursive-text' class to message content ---
+                // --- MODIFIED: Applied 'signature-name' class to the name for the signature look ---
                 bubble.innerHTML = `
-                    <p class="font-bold text-gray-800 text-sm mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
+                    <p class="signature-name text-gray-800 mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
                     <p class="text-xs text-gray-700 leading-tight cursive-text">${displayMessage}</p> 
                     <button onclick="window.showFullMessage('${msg.id}', '${msg.name}', \`${msg.message.replace(/`/g, '\\`')}\`)" 
                             class="mt-1 text-xs text-blue-800 hover:underline">Read All</button>
