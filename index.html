@@ -23,31 +23,28 @@
             color: #1a1a1a; /* Very dark color for emphasis */
             line-height: 1.1;
         }
-        /* Custom class for Cursive Text (Still included but unused in bubbles) */
-        .cursive-text {
-            font-family: 'Sacramento', cursive;
-            font-size: 1.1em; 
-            color: #333;
-        }
         /* Styling for the new plane icon container */
         .plane-signature-bubble {
-             background: none;
-             border: none;
-             padding: 0;
              display: flex; /* Use flex to align plane and name */
              align-items: center;
              width: auto;
              white-space: nowrap;
              cursor: default;
+             z-index: 10; /* Ensure signatures are above everything */
         }
         .plane-signature-bubble:hover {
-            /* Add subtle effect on hover */
             filter: drop-shadow(0 0 5px rgba(0, 100, 255, 0.6));
         }
         .signature-text-container {
              /* Offset name slightly to align with the plane */
              transform: translateY(-2px);
              margin-left: 4px;
+        }
+        /* Ensure the image fills the container while maintaining aspect ratio */
+        #map-image {
+            object-fit: contain;
+            /* Add pointer-events: none so clicks go through to the map-container listener */
+            pointer-events: none; 
         }
     </style>
 </head>
@@ -68,10 +65,12 @@
         </div>
 
         <!-- Map Container -->
-        <!-- FIX: Using relative path 'World map.png' now -->
-        <!-- UPDATED: background-size changed to contain and background-repeat added -->
-        <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] bg-gray-200 rounded-xl shadow-2xl overflow-hidden cursor-pointer border-4 border-gray-300 transition-all duration-300 hover:border-blue-400" 
-             style="background-image: url('World map.png'); background-size: contain; background-repeat: no-repeat; background-position: center; max-height: 80vh;">
+        <!-- UPDATED: Removed background-image style and bg-gray-200. Image is now an <img> tag inside. -->
+        <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] rounded-xl shadow-2xl overflow-hidden cursor-pointer border-4 border-gray-300 transition-all duration-300 hover:border-blue-400" 
+             style="max-height: 80vh;">
+            
+            <!-- NEW: Image tag for precise dimension tracking -->
+            <img id="map-image" src="World map.png" alt="World Map" class="absolute inset-0 w-full h-full">
             
             <!-- DEBUGGING OVERLAY: Placeholder for image error -->
             <div id="image-error-overlay" class="absolute inset-0 bg-red-100/80 hidden items-center justify-center z-30 p-4">
@@ -81,7 +80,7 @@
                 </p>
             </div>
             
-            <!-- Dynamic Message Bubbles Area -->
+            <!-- Dynamic Message Bubbles Area (This is the clickable layer) -->
             <div id="message-area" class="absolute inset-0">
                 <!-- Bubbles will be injected here -->
             </div>
@@ -162,6 +161,7 @@
 
         // DOM Elements
         const mapContainer = document.getElementById('map-container');
+        const mapImage = document.getElementById('map-image'); // NEW: Image element for dimension reading
         const messageArea = document.getElementById('message-area');
         const messageModal = document.getElementById('message-modal');
         const messageForm = document.getElementById('message-form');
@@ -178,6 +178,63 @@
         // Set Firebase logging level to debug
         setLogLevel('debug');
         
+        // --- VISIBLE BOUNDARY CALCULATION ---
+        let visibleXMin = 0;
+        let visibleYMin = 0;
+        let visibleWidth = 100;
+        let visibleHeight = 100;
+
+        function updateVisibleBounds() {
+            // Get the actual display dimensions of the container
+            const containerW = mapContainer.clientWidth;
+            const containerH = mapContainer.clientHeight;
+            
+            // Get the natural dimensions of the image (needed for aspect ratio)
+            const imageW = mapImage.naturalWidth;
+            const imageH = mapImage.naturalHeight;
+
+            // If the image hasn't loaded yet, or if dimensions are zero, return.
+            if (!imageW || !imageH || containerW === 0 || containerH === 0) {
+                // Default to full container if image isn't ready
+                visibleXMin = 0; visibleYMin = 0; visibleWidth = 100; visibleHeight = 100;
+                return;
+            }
+
+            const containerRatio = containerW / containerH;
+            const imageRatio = imageW / imageH;
+
+            if (imageRatio > containerRatio) {
+                // Image is wider than container ratio (Vertical empty bars appear left/right)
+                // The height of the image matches the container height (100% H)
+                const actualImageDisplayW = containerH * imageRatio;
+                const paddingW = (containerW - actualImageDisplayW) / 2;
+                
+                // Convert padding/width to percentage of container
+                const paddingPercent = (paddingW / containerW) * 100;
+                const visiblePercentW = (actualImageDisplayW / containerW) * 100;
+
+                visibleXMin = paddingPercent;
+                visibleYMin = 0;
+                visibleWidth = visiblePercentW;
+                visibleHeight = 100;
+                
+            } else {
+                // Image is taller than container ratio (Horizontal empty bars appear top/bottom)
+                // The width of the image matches the container width (100% W)
+                const actualImageDisplayH = containerW / imageRatio;
+                const paddingH = (containerH - actualImageDisplayH) / 2;
+
+                // Convert padding/height to percentage of container
+                const paddingPercent = (paddingH / containerH) * 100;
+                const visiblePercentH = (actualImageDisplayH / containerH) * 100;
+                
+                visibleXMin = 0;
+                visibleYMin = paddingPercent;
+                visibleWidth = 100;
+                visibleHeight = visiblePercentH;
+            }
+        }
+
         // --- LOCAL STORAGE FUNCTIONS (for Offline Mode) ---
         function loadLocalMessages() {
             try {
@@ -402,28 +459,29 @@
 
         // --- EVENT LISTENERS ---
 
-        // 0. VISUAL DEBUGGING CHECK
-        const backgroundImageStyle = mapContainer.style.backgroundImage;
+        // 0. VISUAL DEBUGGING CHECK & BOUNDS UPDATE
+        mapImage.onload = () => {
+            // Hide the error overlay once the image loads successfully
+            imageErrorOverlay.classList.add('hidden');
+            mapContainer.style.cursor = 'pointer';
+            updateVisibleBounds(); // Initial bounds calculation
+        };
         
-        // Check if the image style explicitly references the filename (World map.png).
-        // If it does, the overlay should be hidden.
-        if (!backgroundImageStyle.includes('World map.png') && backgroundImageStyle.includes('url')) {
-             // If the link is NOT 'World map.png' AND it's not the placeholder (which it shouldn't be here)
-             // This is a complex check, but for simplicity, we just check the placeholder.
-             // If the code still has the placeholder, show the error.
-             if (backgroundImageStyle.includes('PASTE_YOUR_PUBLIC_IMAGE_URL_HERE_FROM_GITHUB')) {
-                 imageErrorOverlay.classList.remove('hidden');
-                 imageErrorOverlay.classList.add('flex');
-                 mapContainer.style.cursor = 'not-allowed';
-             }
-        } else if (backgroundImageStyle.includes('World map.png')) {
-             // If the image is the relative file path, assume the file is present and enable interaction.
-             imageErrorOverlay.classList.add('hidden');
-             mapContainer.style.cursor = 'pointer';
+        // Update bounds on window resize
+        window.addEventListener('resize', updateVisibleBounds);
+        
+        // Fallback check if image is already cached
+        if (mapImage.complete) {
+            mapImage.onload();
+        } else {
+             // If image hasn't loaded (or if path is wrong), show error
+            imageErrorOverlay.classList.remove('hidden');
+            imageErrorOverlay.classList.add('flex');
+            mapContainer.style.cursor = 'not-allowed';
         }
 
 
-        // 1. Handle click on the map to determine placement (NOW RANDOMIZED)
+        // 1. Handle click on the map to determine placement (NOW RANDOMIZED & CONSTRAINED)
         mapContainer.addEventListener('click', (event) => {
             // If the map is covered by the error message, prevent interaction
             if (!imageErrorOverlay.classList.contains('hidden')) {
@@ -435,9 +493,21 @@
                 return;
             }
 
-            // Generate random coordinates between 5% and 95% 
-            newX = 5 + (Math.random() * 90); 
-            newY = 5 + (Math.random() * 90); 
+            // Ensure bounds are calculated before randomizing
+            updateVisibleBounds(); 
+
+            // Calculate new X/Y within the visible area only
+            // Constrain the random range to 90% of the visible area (5% padding from the image edge)
+            const randomXRange = visibleWidth * 0.9;
+            const randomYRange = visibleHeight * 0.9;
+            
+            // Calculate start offsets (5% padding inward from the visible image edge)
+            const xOffset = visibleWidth * 0.05;
+            const yOffset = visibleHeight * 0.05;
+
+            // Generate random coordinates within the safe zone (visible area only)
+            newX = visibleXMin + xOffset + (Math.random() * randomXRange); 
+            newY = visibleYMin + yOffset + (Math.random() * randomYRange); 
             
             // Show the modal
             messageModal.classList.remove('hidden');
@@ -450,14 +520,12 @@
             event.preventDefault();
 
             if (!isAuthReady) {
-                // The isAuthReady check should be true in Offline Mode, but we keep it here for safety.
                 console.error("App not ready yet.");
                 return;
             }
 
             const name = document.getElementById('input-name').value.trim();
-            // Content is always an empty string now
-            const content = ""; 
+            const content = ""; // Content is always an empty string now
 
             if (name) {
                 saveMessage(name, content, newX, newY);
@@ -483,6 +551,9 @@
                 return;
             }
             
+            // Ensure bounds are final before screenshot
+            updateVisibleBounds();
+
             const elementsToHide = [document.getElementById('user-info'), instruction, downloadButton];
             const originalDisplays = elementsToHide.map(el => el.style.display);
             elementsToHide.forEach(el => el.style.display = 'none');
@@ -490,6 +561,7 @@
             const wasCardFull = cardFullMessage.classList.contains('flex');
             cardFullMessage.style.display = 'none';
 
+            // IMPORTANT: Screenshot the map container
             const canvas = await html2canvas(mapContainer, {
                 useCORS: true, 
                 backgroundColor: null 
