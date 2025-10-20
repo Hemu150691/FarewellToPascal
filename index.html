@@ -535,7 +535,7 @@
             }
         });
         
-        // 4. DOWNLOAD FUNCTIONALITY (No change)
+        // 4. DOWNLOAD FUNCTIONALITY (Fix implemented to capture overflowing signatures/shadows)
         downloadButton.addEventListener('click', async () => {
             if (typeof html2canvas === 'undefined') { alert("Image capture tool not loaded. Please try again."); return; }
             updateVisibleBounds();
@@ -547,7 +547,18 @@
             const wasCardFull = cardFullMessage.classList.contains('flex');
             cardFullMessage.style.display = 'none';
 
+            // --- FIX START: Temporarily set overflow to visible for accurate capture ---
+            // Save the original overflow style
+            const originalOverflow = mapContainer.style.overflow;
+            // Force it to visible for html2canvas to capture signature shadows/centering fully
+            mapContainer.style.overflow = 'visible';
+            
+            // Capture the content
             const canvas = await html2canvas(mapContainer, { useCORS: true, backgroundColor: null });
+
+            // --- FIX END: Restore original state ---
+            mapContainer.style.overflow = originalOverflow;
+            
             const image = canvas.toDataURL('image/png');
             const link = document.createElement('a');
             link.href = image;
