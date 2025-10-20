@@ -102,6 +102,31 @@
             </div>
         </div>
         
+        <!-- Data Management Section (NEW) -->
+        <div class="mt-8 flex flex-col items-center p-4 bg-gray-50 rounded-lg shadow-inner w-full max-w-5xl border border-gray-200">
+            <h3 class="text-xl font-bold text-gray-700 mb-4">Offline Data Management</h3>
+            
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-8">
+                <!-- Export Section (For the Friend) -->
+                <div class="flex flex-col items-center p-4 bg-white rounded-lg shadow w-full md:w-1/2">
+                    <p class="text-sm font-semibold text-gray-600 mb-2">If you signed the card, click here and send the text to the host.</p>
+                    <button id="export-button" class="px-4 py-2 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition duration-150">
+                        Export My Signatures
+                    </button>
+                    <textarea id="export-data" rows="3" readonly class="mt-3 w-full p-2 border border-gray-300 rounded-lg text-xs resize-none hidden" placeholder="Your exported data will appear here."></textarea>
+                </div>
+
+                <!-- Import Section (For the Host) -->
+                <div class="flex flex-col items-center p-4 bg-white rounded-lg shadow w-full md:w-1/2">
+                    <p class="text-sm font-semibold text-gray-600 mb-2">Host: Paste a friend's exported data here to compile the card.</p>
+                    <textarea id="import-data" rows="3" class="w-full p-2 border border-blue-300 rounded-lg text-xs resize-none" placeholder="Paste JSON data from a friend here..."></textarea>
+                    <button id="import-button" class="mt-3 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition duration-150">
+                        Import Data
+                    </button>
+                </div>
+            </div>
+        </div>
+        
         <!-- Download Button -->
         <button id="download-button" class="mt-8 px-6 py-3 bg-red-600 text-white font-bold rounded-lg shadow-lg hover:bg-red-700 transition duration-150">
             Download Final Card Image (PNG)
@@ -161,7 +186,7 @@
 
         // DOM Elements
         const mapContainer = document.getElementById('map-container');
-        const mapImage = document.getElementById('map-image'); // NEW: Image element for dimension reading
+        const mapImage = document.getElementById('map-image'); 
         const messageArea = document.getElementById('message-area');
         const messageModal = document.getElementById('message-modal');
         const messageForm = document.getElementById('message-form');
@@ -173,6 +198,10 @@
         const instruction = document.getElementById('instruction');
         const downloadButton = document.getElementById('download-button');
         const imageErrorOverlay = document.getElementById('image-error-overlay');
+        const exportButton = document.getElementById('export-button'); // NEW
+        const importButton = document.getElementById('import-button'); // NEW
+        const exportDataArea = document.getElementById('export-data'); // NEW
+        const importDataArea = document.getElementById('import-data'); // NEW
 
 
         // Set Firebase logging level to debug
@@ -252,6 +281,12 @@
                     instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`;
                 }
 
+                // If in offline mode, show the data management section
+                if (!db) {
+                    exportDataArea.value = storedMessages || '[]'; // Preload export area with current data
+                    exportDataArea.classList.remove('hidden');
+                }
+
             } catch (error) {
                 console.error("Error loading messages from local storage:", error);
                 localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear corrupted storage
@@ -262,10 +297,16 @@
             const storedMessages = localStorage.getItem(LOCAL_STORAGE_KEY);
             let messages = storedMessages ? JSON.parse(storedMessages) : [];
             
+            // Check for duplicates before saving (prevent a friend from exporting multiple times)
+            const isDuplicate = messages.some(msg => msg.name === name);
+            if (isDuplicate) {
+                alert(`Signature by ${name} already exists. Skipping import.`);
+                return;
+            }
+
             const newMessage = {
                 id: Date.now(), 
                 name: name, 
-                // Set message content to empty string since we removed the field
                 message: "", 
                 x: x, 
                 y: y,
@@ -275,6 +316,9 @@
             messages.push(newMessage);
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(messages));
             
+            // Update export data area
+            exportDataArea.value = JSON.stringify(messages);
+
             // Re-render all messages to include the new one
             messageCount = messages.length;
             renderBubbles(messages);
@@ -288,9 +332,47 @@
                 instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`;
             }
         }
+        
+        // --- IMPORT FUNCTION (NEW) ---
+        function importLocalMessages(jsonString) {
+            try {
+                const importedMessages = JSON.parse(jsonString);
+                
+                if (!Array.isArray(importedMessages) || importedMessages.length === 0) {
+                     alert("Import failed: Data is not a valid signature list.");
+                     return;
+                }
+                
+                let currentMessages = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+                
+                let signaturesAdded = 0;
+                
+                importedMessages.forEach(importedMsg => {
+                    // Simple check to prevent duplicate names during compilation
+                    const nameExists = currentMessages.some(msg => msg.name === importedMsg.name);
+                    
+                    if (!nameExists && currentMessages.length < 50) {
+                        currentMessages.push(importedMsg);
+                        signaturesAdded++;
+                    }
+                });
+
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentMessages));
+                
+                // Re-render the compiled list
+                loadLocalMessages();
+                
+                alert(`Import successful! Added ${signaturesAdded} new signatures to your card.`);
+                importDataArea.value = ''; // Clear the input area
+                
+            } catch (error) {
+                console.error("Import error:", error);
+                alert("Import failed: The text you pasted is not valid JSON data.");
+            }
+        }
 
 
-        // --- FIREBASE INITIALIZATION & AUTHENTICATION ---
+        // --- FIREBASE INITIALIZATION & AUTHENTICATION (Unused in Offline Mode but required for structure) ---
         async function initializeFirebase() {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
@@ -302,36 +384,17 @@
                     loadLocalMessages(); // Load locally saved messages
                     return;
                 }
-
+                // ... (Original Firebase initialization and auth code remains here)
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                
                 authStatusSpan.textContent = "Connecting...";
 
-                // Sign in using the custom token or anonymously
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                    console.log("Signed in with custom token.");
-                } else {
-                    await signInAnonymously(auth);
-                    console.log("Signed in anonymously.");
-                }
+                if (initialAuthToken) { await signInWithCustomToken(auth, initialAuthToken); } else { await signInAnonymously(auth); }
 
-                // Set up the Auth state listener
                 onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userIdSpan.textContent = userId;
-                        authStatusSpan.textContent = "Authenticated";
-                    } else {
-                        console.error("User is signed out.");
-                        userId = 'unauthenticated';
-                        userIdSpan.textContent = userId;
-                        authStatusSpan.textContent = "Unauthenticated";
-                    }
+                    if (user) { userId = user.uid; userIdSpan.textContent = userId; authStatusSpan.textContent = "Authenticated"; } else { userId = 'unauthenticated'; userIdSpan.textContent = userId; authStatusSpan.textContent = "Unauthenticated"; }
                     isAuthReady = true;
-                    // Start the real-time listener only once authentication is ready
                     startMessageListener(); 
                 });
 
@@ -343,215 +406,138 @@
             }
         }
 
-        // --- FIRESTORE FUNCTIONS ---
-        
-        function getMessagesCollectionRef() {
-             // Public collection path: /artifacts/{appId}/public/data/messages
-            return collection(db, `artifacts/${appId}/public/data/messages`);
-        }
+        // --- FIRESTORE FUNCTIONS (Unused in Offline Mode) ---
+        function getMessagesCollectionRef() { return collection(db, `artifacts/${appId}/public/data/messages`); }
 
         function startMessageListener() {
             if (!isAuthReady || !db) return;
-
             const messagesQuery = query(getMessagesCollectionRef());
-
             onSnapshot(messagesQuery, (snapshot) => {
                 loadingOverlay.classList.add('hidden');
-                
                 const messages = [];
-                snapshot.forEach(doc => {
-                    messages.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // Sort messages in memory (by timestamp, newest first)
+                snapshot.forEach(doc => { messages.push({ id: doc.id, ...doc.data() }); });
                 messages.sort((a, b) => b.timestamp - a.timestamp); 
-                
                 messageCount = messages.length;
-                
-                if (messageCount >= 50) {
-                    cardFullMessage.classList.remove('hidden');
-                    instruction.textContent = "The card is now full! You can read all the wishes below.";
-                } else {
-                    cardFullMessage.classList.add('hidden');
-                    instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`;
-                }
-
+                if (messageCount >= 50) { cardFullMessage.classList.remove('hidden'); instruction.textContent = "The card is now full! You can read all the wishes below."; } else { cardFullMessage.classList.add('hidden'); instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`; }
                 renderBubbles(messages);
-
-            }, (error) => {
-                console.error("Error fetching documents:", error);
-                loadingOverlay.innerHTML = `<p class="text-red-600 font-semibold">Error loading messages. Check console.</p>`;
-            });
+            }, (error) => { console.error("Error fetching documents:", error); loadingOverlay.innerHTML = `<p class="text-red-600 font-semibold">Error loading messages. Check console.</p>`; });
         }
 
         async function saveMessage(name, content, x, y) {
-            // content is now always an empty string
-            if (!db) {
-                // OFFLINE MODE: Save to local storage for persistence for this user only
-                saveLocalMessage(name, content, x, y);
-                return;
-            }
-            
-            // ONLINE MODE: Save to Firebase for multi-user sharing
+            if (!db) { saveLocalMessage(name, content, x, y); return; }
             try {
-                const docRef = await addDoc(getMessagesCollectionRef(), {
-                    name: name,
-                    // Sending empty string for message content
-                    message: content,
-                    x: x, // Normalized X position (0-100)
-                    y: y, // Normalized Y position (0-100)
-                    timestamp: Date.now(),
-                    userId: userId 
-                });
+                const docRef = await addDoc(getMessagesCollectionRef(), { name: name, message: content, x: x, y: y, timestamp: Date.now(), userId: userId });
                 console.log("Document written with ID: ", docRef.id);
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                alert(`Error saving message: ${e.message}`);
-            }
+            } catch (e) { console.error("Error adding document: ", e); alert(`Error saving message: ${e.message}`); }
         }
 
-        // --- UI RENDERING ---
 
+        // --- UI RENDERING (No changes here) ---
         function renderBubbles(messages) {
-            messageArea.innerHTML = ''; // Clear existing bubbles
-
+            messageArea.innerHTML = ''; 
             messages.forEach((msg, index) => {
                 const x = parseFloat(msg.x);
                 const y = parseFloat(msg.y);
-                
-                // Inline SVG of a simple paper airplane icon (scaled small)
-                const planeSvg = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600 transform -rotate-45 drop-shadow-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/>
-                    </svg>
-                `;
-
+                const planeSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600 transform -rotate-45 drop-shadow-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/> </svg>`;
                 const bubble = document.createElement('div');
-                
-                // Use a different class and minimal styling for the plane icon container
                 bubble.className = `message-bubble absolute plane-signature-bubble transition-all duration-300 hover:z-10 hover:scale-[1.1]`;
                 bubble.style.left = `${x}%`;
                 bubble.style.top = `${y}%`;
-                // Anchor the plane's center/tail at the calculated (x, y) point
                 bubble.style.transform = 'translate(-50%, -50%)'; 
-                
-                // Store the full message data on the element for offline mode re-rendering
                 bubble.dataset.msg = JSON.stringify(msg);
-
-                // Combine plane and signature name
-                bubble.innerHTML = `
-                    ${planeSvg}
-                    <div class="signature-text-container">
-                        <p class="signature-name text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
-                    </div>
-                `;
-                
+                bubble.innerHTML = `${planeSvg} <div class="signature-text-container"> <p class="signature-name text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p> </div>`;
                 messageArea.appendChild(bubble);
             });
         }
         
-        // Expose function globally for the 'Read All' button (Removed as we don't need it)
-        window.showFullMessage = (id, name, message) => {
-            // Since we removed the message, this button is now unused
-            alert(`Signature: ${name}`);
-        };
+        window.showFullMessage = (id, name, message) => { alert(`Signature: ${name}`); };
 
 
         // --- EVENT LISTENERS ---
 
-        // 0. VISUAL DEBUGGING CHECK & BOUNDS UPDATE
+        // 0. VISUAL DEBUGGING CHECK & BOUNDS UPDATE (No change)
         mapImage.onload = () => {
-            // Hide the error overlay once the image loads successfully
             imageErrorOverlay.classList.add('hidden');
             mapContainer.style.cursor = 'pointer';
-            updateVisibleBounds(); // Initial bounds calculation
+            updateVisibleBounds(); 
         };
         
-        // Update bounds on window resize
         window.addEventListener('resize', updateVisibleBounds);
         
-        // Fallback check if image is already cached
         if (mapImage.complete) {
             mapImage.onload();
         } else {
-             // If image hasn't loaded (or if path is wrong), show error
             imageErrorOverlay.classList.remove('hidden');
             imageErrorOverlay.classList.add('flex');
             mapContainer.style.cursor = 'not-allowed';
         }
 
 
-        // 1. Handle click on the map to determine placement (NOW RANDOMIZED & CONSTRAINED)
+        // 1. Handle click on the map to determine placement (No change)
         mapContainer.addEventListener('click', (event) => {
-            // If the map is covered by the error message, prevent interaction
-            if (!imageErrorOverlay.classList.contains('hidden')) {
-                return;
-            }
+            if (!imageErrorOverlay.classList.contains('hidden')) { return; }
+            if (messageCount >= 50) { return; }
 
-            if (messageCount >= 50) {
-                // Don't open modal if card is full
-                return;
-            }
-
-            // Ensure bounds are calculated before randomizing
             updateVisibleBounds(); 
-
-            // Calculate new X/Y within the visible area only
-            // Constrain the random range to 90% of the visible area (5% padding from the image edge)
             const randomXRange = visibleWidth * 0.9;
             const randomYRange = visibleHeight * 0.9;
-            
-            // Calculate start offsets (5% padding inward from the visible image edge)
             const xOffset = visibleWidth * 0.05;
             const yOffset = visibleHeight * 0.05;
 
-            // Generate random coordinates within the safe zone (visible area only)
             newX = visibleXMin + xOffset + (Math.random() * randomXRange); 
             newY = visibleYMin + yOffset + (Math.random() * randomYRange); 
             
-            // Show the modal
             messageModal.classList.remove('hidden');
             messageModal.classList.add('flex');
             document.getElementById('input-name').focus();
         });
 
-        // 2. Handle form submission
+        // 2. Handle form submission (No change)
         messageForm.addEventListener('submit', (event) => {
             event.preventDefault();
 
-            if (!isAuthReady) {
-                console.error("App not ready yet.");
-                return;
-            }
+            if (!isAuthReady) { console.error("App not ready yet."); return; }
 
             const name = document.getElementById('input-name').value.trim();
-            const content = ""; // Content is always an empty string now
+            const content = "";
 
             if (name) {
                 saveMessage(name, content, newX, newY);
                 
-                // Hide and reset modal
                 messageModal.classList.remove('flex');
                 messageModal.classList.add('hidden');
                 messageForm.reset();
             }
         });
 
-        // 3. Handle modal cancellation
+        // 3. Handle modal cancellation (No change)
         cancelButton.addEventListener('click', () => {
             messageModal.classList.remove('flex');
             messageModal.classList.add('hidden');
             messageForm.reset();
         });
         
-        // 4. DOWNLOAD FUNCTIONALITY (No changes here, it uses the canvas)
-        downloadButton.addEventListener('click', async () => {
-            if (typeof html2canvas === 'undefined') {
-                alert("Image capture tool not loaded. Please try again.");
-                return;
+        // --- NEW: Data Management Event Listeners ---
+        exportButton.addEventListener('click', () => {
+            const data = localStorage.getItem(LOCAL_STORAGE_KEY) || '[]';
+            exportDataArea.value = data;
+            exportDataArea.classList.remove('hidden');
+            exportDataArea.select(); // Select the text so the user can easily copy it
+            alert("Data copied! Please paste this text and send it to the host.");
+        });
+
+        importButton.addEventListener('click', () => {
+            const jsonText = importDataArea.value.trim();
+            if (jsonText) {
+                importLocalMessages(jsonText);
+            } else {
+                alert("Please paste the signature data into the box first.");
             }
-            
-            // Ensure bounds are final before screenshot
+        });
+        
+        // 4. DOWNLOAD FUNCTIONALITY (No change)
+        downloadButton.addEventListener('click', async () => {
+            if (typeof html2canvas === 'undefined') { alert("Image capture tool not loaded. Please try again."); return; }
             updateVisibleBounds();
 
             const elementsToHide = [document.getElementById('user-info'), instruction, downloadButton];
@@ -561,14 +547,8 @@
             const wasCardFull = cardFullMessage.classList.contains('flex');
             cardFullMessage.style.display = 'none';
 
-            // IMPORTANT: Screenshot the map container
-            const canvas = await html2canvas(mapContainer, {
-                useCORS: true, 
-                backgroundColor: null 
-            });
-
+            const canvas = await html2canvas(mapContainer, { useCORS: true, backgroundColor: null });
             const image = canvas.toDataURL('image/png');
-
             const link = document.createElement('a');
             link.href = image;
             link.download = 'Global_Greeting_Card.png';
@@ -577,10 +557,7 @@
             document.body.removeChild(link);
 
             elementsToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
-            if (wasCardFull) {
-                cardFullMessage.classList.add('flex');
-                cardFullMessage.classList.remove('hidden');
-            }
+            if (wasCardFull) { cardFullMessage.classList.add('flex'); cardFullMessage.classList.remove('hidden'); }
             
             alert("Your final greeting card image has been downloaded!");
         });
