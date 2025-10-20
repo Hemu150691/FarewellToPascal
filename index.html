@@ -61,11 +61,10 @@
         
         <!-- User ID Display (MANDATORY for collaboration) -->
         <div id="user-info" class="text-sm text-gray-500 mb-4 bg-gray-100 p-2 rounded-lg shadow-inner">
-            <span id="auth-status">Initializing...</span> | User ID: <span id="user-id">Loading...</span>
+            <span id="auth-status">Offline Mode (Local Save Only)</span>
         </div>
 
         <!-- Map Container -->
-        <!-- UPDATED: Removed background-image style and bg-gray-200. Image is now an <img> tag inside. -->
         <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] rounded-xl shadow-2xl overflow-hidden cursor-pointer border-4 border-gray-300 transition-all duration-300 hover:border-blue-400" 
              style="max-height: 80vh;">
             
@@ -102,27 +101,26 @@
             </div>
         </div>
         
-        <!-- Data Management Section (NEW) -->
-        <div class="mt-8 flex flex-col items-center p-4 bg-gray-50 rounded-lg shadow-inner w-full max-w-5xl border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-700 mb-4">Offline Data Management</h3>
+        <!-- Simplified Data Section -->
+        <div id="data-management-section" class="mt-8 flex flex-col items-center p-4 bg-gray-50 rounded-lg shadow-inner w-full max-w-5xl border border-gray-200">
+            <h3 class="text-xl font-bold text-gray-700 mb-4">Compilation Tools</h3>
             
-            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-8">
-                <!-- Export Section (For the Friend) -->
-                <div class="flex flex-col items-center p-4 bg-white rounded-lg shadow w-full md:w-1/2">
-                    <p class="text-sm font-semibold text-gray-600 mb-2">If you signed the card, click here and send the text to the host.</p>
-                    <button id="export-button" class="px-4 py-2 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition duration-150">
-                        Export My Signatures
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-8 w-full justify-center items-center">
+                <!-- Export Button (For the Friend) -->
+                <div class="flex flex-col items-center w-full md:w-auto">
+                    <button id="export-button" class="px-6 py-3 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition duration-150">
+                        1. Get My Signature Data
                     </button>
-                    <textarea id="export-data" rows="3" readonly class="mt-3 w-full p-2 border border-gray-300 rounded-lg text-xs resize-none hidden" placeholder="Your exported data will appear here."></textarea>
+                    <p class="mt-2 text-sm text-gray-600 text-center">Click, copy the data, and send it to the host!</p>
                 </div>
-
-                <!-- Import Section (For the Host) -->
-                <div class="flex flex-col items-center p-4 bg-white rounded-lg shadow w-full md:w-1/2">
-                    <p class="text-sm font-semibold text-gray-600 mb-2">Host: Paste a friend's exported data here to compile the card.</p>
-                    <textarea id="import-data" rows="3" class="w-full p-2 border border-blue-300 rounded-lg text-xs resize-none" placeholder="Paste JSON data from a friend here..."></textarea>
-                    <button id="import-button" class="mt-3 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition duration-150">
-                        Import Data
+                
+                <!-- Import Area (For the Host) -->
+                <div class="flex flex-col items-center w-full md:w-auto">
+                    <textarea id="import-data" rows="2" class="w-full md:w-96 p-2 border border-blue-300 rounded-lg text-xs resize-none" placeholder="Host: Paste friend's data here..."></textarea>
+                    <button id="import-button" class="mt-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition duration-150">
+                        2. Import & Compile Signatures
                     </button>
+                    <p class="mt-2 text-sm text-gray-600 text-center">Repeat for every friend to compile the full card.</p>
                 </div>
             </div>
         </div>
@@ -139,9 +137,6 @@
         <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
             <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Leave Your Signature</h2>
             
-            <!-- Coordinate Display (Hidden, for debugging/clarity) -->
-            <p class="text-sm text-gray-500 mb-4 hidden">Placing message at: <span id="coords-display"></span></p>
-
             <form id="message-form">
                 <div class="mb-4">
                     <label for="input-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name (Signature)</label>
@@ -149,8 +144,6 @@
                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm"
                            placeholder="Enter your name">
                 </div>
-                
-                <!-- REMOVED: Message input field -->
                 
                 <div class="flex justify-end space-x-3">
                     <button type="button" id="cancel-button" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition duration-150">Cancel</button>
@@ -193,16 +186,13 @@
         const cancelButton = document.getElementById('cancel-button');
         const loadingOverlay = document.getElementById('loading-overlay');
         const cardFullMessage = document.getElementById('card-full-message');
-        const userIdSpan = document.getElementById('user-id');
-        const authStatusSpan = document.getElementById('auth-status');
         const instruction = document.getElementById('instruction');
         const downloadButton = document.getElementById('download-button');
         const imageErrorOverlay = document.getElementById('image-error-overlay');
-        const exportButton = document.getElementById('export-button'); // NEW
-        const importButton = document.getElementById('import-button'); // NEW
-        const exportDataArea = document.getElementById('export-data'); // NEW
-        const importDataArea = document.getElementById('import-data'); // NEW
-
+        const exportButton = document.getElementById('export-button'); // USED
+        const importButton = document.getElementById('import-button'); // USED
+        const importDataArea = document.getElementById('import-data'); // USED
+        const dataManagementSection = document.getElementById('data-management-section'); // ADDED
 
         // Set Firebase logging level to debug
         setLogLevel('debug');
@@ -214,17 +204,12 @@
         let visibleHeight = 100;
 
         function updateVisibleBounds() {
-            // Get the actual display dimensions of the container
             const containerW = mapContainer.clientWidth;
             const containerH = mapContainer.clientHeight;
-            
-            // Get the natural dimensions of the image (needed for aspect ratio)
             const imageW = mapImage.naturalWidth;
             const imageH = mapImage.naturalHeight;
 
-            // If the image hasn't loaded yet, or if dimensions are zero, return.
             if (!imageW || !imageH || containerW === 0 || containerH === 0) {
-                // Default to full container if image isn't ready
                 visibleXMin = 0; visibleYMin = 0; visibleWidth = 100; visibleHeight = 100;
                 return;
             }
@@ -233,12 +218,8 @@
             const imageRatio = imageW / imageH;
 
             if (imageRatio > containerRatio) {
-                // Image is wider than container ratio (Vertical empty bars appear left/right)
-                // The height of the image matches the container height (100% H)
                 const actualImageDisplayW = containerH * imageRatio;
                 const paddingW = (containerW - actualImageDisplayW) / 2;
-                
-                // Convert padding/width to percentage of container
                 const paddingPercent = (paddingW / containerW) * 100;
                 const visiblePercentW = (actualImageDisplayW / containerW) * 100;
 
@@ -248,12 +229,8 @@
                 visibleHeight = 100;
                 
             } else {
-                // Image is taller than container ratio (Horizontal empty bars appear top/bottom)
-                // The width of the image matches the container width (100% W)
                 const actualImageDisplayH = containerW / imageRatio;
                 const paddingH = (containerH - actualImageDisplayH) / 2;
-
-                // Convert padding/height to percentage of container
                 const paddingPercent = (paddingH / containerH) * 100;
                 const visiblePercentH = (actualImageDisplayH / containerH) * 100;
                 
@@ -281,12 +258,6 @@
                     instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`;
                 }
 
-                // If in offline mode, show the data management section
-                if (!db) {
-                    exportDataArea.value = storedMessages || '[]'; // Preload export area with current data
-                    exportDataArea.classList.remove('hidden');
-                }
-
             } catch (error) {
                 console.error("Error loading messages from local storage:", error);
                 localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear corrupted storage
@@ -297,10 +268,10 @@
             const storedMessages = localStorage.getItem(LOCAL_STORAGE_KEY);
             let messages = storedMessages ? JSON.parse(storedMessages) : [];
             
-            // Check for duplicates before saving (prevent a friend from exporting multiple times)
+            // Check for duplicates
             const isDuplicate = messages.some(msg => msg.name === name);
             if (isDuplicate) {
-                alert(`Signature by ${name} already exists. Skipping import.`);
+                alert(`Signature by ${name} already exists. Please use a unique name.`);
                 return;
             }
 
@@ -316,9 +287,6 @@
             messages.push(newMessage);
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(messages));
             
-            // Update export data area
-            exportDataArea.value = JSON.stringify(messages);
-
             // Re-render all messages to include the new one
             messageCount = messages.length;
             renderBubbles(messages);
@@ -333,7 +301,7 @@
             }
         }
         
-        // --- IMPORT FUNCTION (NEW) ---
+        // --- IMPORT FUNCTION (Used by Host) ---
         function importLocalMessages(jsonString) {
             try {
                 const importedMessages = JSON.parse(jsonString);
@@ -348,7 +316,6 @@
                 let signaturesAdded = 0;
                 
                 importedMessages.forEach(importedMsg => {
-                    // Simple check to prevent duplicate names during compilation
                     const nameExists = currentMessages.some(msg => msg.name === importedMsg.name);
                     
                     if (!nameExists && currentMessages.length < 50) {
@@ -372,67 +339,23 @@
         }
 
 
-        // --- FIREBASE INITIALIZATION & AUTHENTICATION (Unused in Offline Mode but required for structure) ---
+        // --- FIREBASE INITIALIZATION & AUTHENTICATION (Disabled in Offline Mode) ---
         async function initializeFirebase() {
-            try {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    // Running in OFFLINE MODE (GitHub Pages hosting)
-                    console.warn("Firebase config is missing. Database features disabled. Running in OFFLINE MODE with Local Storage persistence.");
-                    authStatusSpan.textContent = "Offline Mode (Local Save Only)"; 
-                    userIdSpan.textContent = "N/A";
-                    isAuthReady = true; 
-                    loadLocalMessages(); // Load locally saved messages
-                    return;
-                }
-                // ... (Original Firebase initialization and auth code remains here)
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                authStatusSpan.textContent = "Connecting...";
-
-                if (initialAuthToken) { await signInWithCustomToken(auth, initialAuthToken); } else { await signInAnonymously(auth); }
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) { userId = user.uid; userIdSpan.textContent = userId; authStatusSpan.textContent = "Authenticated"; } else { userId = 'unauthenticated'; userIdSpan.textContent = userId; authStatusSpan.textContent = "Unauthenticated"; }
-                    isAuthReady = true;
-                    startMessageListener(); 
-                });
-
-            } catch (error) {
-                console.error("Firebase Initialization or Auth Failed:", error);
-                authStatusSpan.textContent = `Error: ${error.code}`;
-                isAuthReady = true;
-                loadingOverlay.classList.add('hidden');
+            if (Object.keys(firebaseConfig).length === 0) {
+                loadLocalMessages();
+                return;
             }
+            // ... (Firebase connection logic remains but is disabled via the if statement above)
         }
 
-        // --- FIRESTORE FUNCTIONS (Unused in Offline Mode) ---
-        function getMessagesCollectionRef() { return collection(db, `artifacts/${appId}/public/data/messages`); }
-
-        function startMessageListener() {
-            if (!isAuthReady || !db) return;
-            const messagesQuery = query(getMessagesCollectionRef());
-            onSnapshot(messagesQuery, (snapshot) => {
-                loadingOverlay.classList.add('hidden');
-                const messages = [];
-                snapshot.forEach(doc => { messages.push({ id: doc.id, ...doc.data() }); });
-                messages.sort((a, b) => b.timestamp - a.timestamp); 
-                messageCount = messages.length;
-                if (messageCount >= 50) { cardFullMessage.classList.remove('hidden'); instruction.textContent = "The card is now full! You can read all the wishes below."; } else { cardFullMessage.classList.add('hidden'); instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`; }
-                renderBubbles(messages);
-            }, (error) => { console.error("Error fetching documents:", error); loadingOverlay.innerHTML = `<p class="text-red-600 font-semibold">Error loading messages. Check console.</p>`; });
-        }
-
-        async function saveMessage(name, content, x, y) {
-            if (!db) { saveLocalMessage(name, content, x, y); return; }
-            try {
-                const docRef = await addDoc(getMessagesCollectionRef(), { name: name, message: content, x: x, y: y, timestamp: Date.now(), userId: userId });
-                console.log("Document written with ID: ", docRef.id);
-            } catch (e) { console.error("Error adding document: ", e); alert(`Error saving message: ${e.message}`); }
+        function saveMessage(name, content, x, y) {
+            // Since db is null in offline mode, this always calls saveLocalMessage
+            saveLocalMessage(name, content, x, y);
+            return;
         }
 
 
-        // --- UI RENDERING (No changes here) ---
+        // --- UI RENDERING ---
         function renderBubbles(messages) {
             messageArea.innerHTML = ''; 
             messages.forEach((msg, index) => {
@@ -450,12 +373,10 @@
             });
         }
         
-        window.showFullMessage = (id, name, message) => { alert(`Signature: ${name}`); };
-
 
         // --- EVENT LISTENERS ---
 
-        // 0. VISUAL DEBUGGING CHECK & BOUNDS UPDATE (No change)
+        // 0. VISUAL DEBUGGING CHECK & BOUNDS UPDATE (Image Load)
         mapImage.onload = () => {
             imageErrorOverlay.classList.add('hidden');
             mapContainer.style.cursor = 'pointer';
@@ -473,7 +394,7 @@
         }
 
 
-        // 1. Handle click on the map to determine placement (No change)
+        // 1. Handle click on the map to determine placement
         mapContainer.addEventListener('click', (event) => {
             if (!imageErrorOverlay.classList.contains('hidden')) { return; }
             if (messageCount >= 50) { return; }
@@ -492,11 +413,9 @@
             document.getElementById('input-name').focus();
         });
 
-        // 2. Handle form submission (No change)
+        // 2. Handle form submission
         messageForm.addEventListener('submit', (event) => {
             event.preventDefault();
-
-            if (!isAuthReady) { console.error("App not ready yet."); return; }
 
             const name = document.getElementById('input-name').value.trim();
             const content = "";
@@ -510,22 +429,30 @@
             }
         });
 
-        // 3. Handle modal cancellation (No change)
+        // 3. Handle modal cancellation
         cancelButton.addEventListener('click', () => {
             messageModal.classList.remove('flex');
             messageModal.classList.add('hidden');
             messageForm.reset();
         });
         
-        // --- NEW: Data Management Event Listeners ---
-        exportButton.addEventListener('click', () => {
+        // --- EXPORT/IMPORT LISTENERS ---
+        
+        // Export: Copies the current local storage data to the clipboard
+        exportButton.addEventListener('click', async () => {
             const data = localStorage.getItem(LOCAL_STORAGE_KEY) || '[]';
-            exportDataArea.value = data;
-            exportDataArea.classList.remove('hidden');
-            exportDataArea.select(); // Select the text so the user can easily copy it
-            alert("Data copied! Please paste this text and send it to the host.");
+            
+            try {
+                await navigator.clipboard.writeText(data);
+                alert("Signature data copied! Please paste this text and send it to the host.");
+            } catch (err) {
+                // Fallback for environments where clipboard access is denied
+                console.error('Could not copy data to clipboard', err);
+                prompt("Could not copy automatically. Please manually copy the data below:", data);
+            }
         });
 
+        // Import: Host pastes data from a friend
         importButton.addEventListener('click', () => {
             const jsonText = importDataArea.value.trim();
             if (jsonText) {
@@ -535,42 +462,54 @@
             }
         });
         
-        // 4. DOWNLOAD FUNCTIONALITY (Fix implemented to capture overflowing signatures/shadows)
+        // 4. DOWNLOAD FUNCTIONALITY (High-Res)
         downloadButton.addEventListener('click', async () => {
             if (typeof html2canvas === 'undefined') { alert("Image capture tool not loaded. Please try again."); return; }
             updateVisibleBounds();
 
-            const elementsToHide = [document.getElementById('user-info'), instruction, downloadButton];
+            // Store original button text/state
+            const originalButtonText = downloadButton.textContent;
+            downloadButton.textContent = "Capturing Image... Please Wait...";
+            downloadButton.disabled = true;
+
+            const elementsToHide = [document.getElementById('user-info'), instruction, dataManagementSection, downloadButton];
             const originalDisplays = elementsToHide.map(el => el.style.display);
             elementsToHide.forEach(el => el.style.display = 'none');
             
             const wasCardFull = cardFullMessage.classList.contains('flex');
             cardFullMessage.style.display = 'none';
 
-            // --- FIX START: Temporarily set overflow to visible for accurate capture ---
-            // Save the original overflow style
+            // --- Capture Fix: Temporarily set overflow to visible for accurate capture ---
             const originalOverflow = mapContainer.style.overflow;
-            // Force it to visible for html2canvas to capture signature shadows/centering fully
             mapContainer.style.overflow = 'visible';
             
-            // Capture the content
-            const canvas = await html2canvas(mapContainer, { useCORS: true, backgroundColor: null });
+            // Capture the content with HIGH RESOLUTION (scale: 2)
+            const canvas = await html2canvas(mapContainer, { 
+                useCORS: true, 
+                backgroundColor: null,
+                scale: 2 
+            });
 
-            // --- FIX END: Restore original state ---
+            // --- Restore original state ---
             mapContainer.style.overflow = originalOverflow;
             
             const image = canvas.toDataURL('image/png');
             const link = document.createElement('a');
             link.href = image;
-            link.download = 'Global_Greeting_Card.png';
+            link.download = 'Global_Greeting_Card_High_Res.png'; 
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
+            // Restore UI state
             elementsToHide.forEach((el, index) => el.style.display = originalDisplays[index]);
             if (wasCardFull) { cardFullMessage.classList.add('flex'); cardFullMessage.classList.remove('hidden'); }
             
-            alert("Your final greeting card image has been downloaded!");
+            // Restore button state
+            downloadButton.textContent = originalButtonText;
+            downloadButton.disabled = false;
+            
+            alert("Your high-resolution final card image has been downloaded!");
         });
 
         // 5. Start the app
