@@ -18,15 +18,15 @@
         /* Custom class for Signature Name */
         .signature-name {
             font-family: 'Caveat', cursive; /* Use Caveat font for signature look */
-            font-size: 1.3em; /* Larger size to stand out */
+            font-size: 1.6em; /* Larger size to stand out */
             font-weight: 700; /* Bold */
             color: #1a1a1a; /* Very dark color for emphasis */
             line-height: 1.1;
         }
-        /* Custom class for Cursive Text */
+        /* Custom class for Cursive Text (Still included but unused in bubbles) */
         .cursive-text {
             font-family: 'Sacramento', cursive;
-            font-size: 1.1em; /* Slightly larger for better readability */
+            font-size: 1.1em; 
             color: #333;
         }
         /* Custom class for Transparent Bubble */
@@ -34,6 +34,7 @@
             background-color: transparent; /* Set to fully transparent */
             border: 1px dashed #333; /* Dark dashed border for a note feel */
             box-shadow: 0 0 5px rgba(0,0,0,0.2); /* Keep soft shadow for readability */
+            padding: 8px 12px; /* Adjusted padding for better signature framing */
         }
         .transparent-bubble:hover {
             background-color: transparent; /* Ensure hover is also transparent */
@@ -49,7 +50,7 @@
             Send Warm Wishes Across the World
         </h1>
         <p id="instruction" class="text-lg text-gray-600 mb-6 text-center">
-            Click anywhere on the map below to leave a personalized message (Limit: 50 spots).
+            Click anywhere on the map below to leave your personalized signature (Limit: 50 spots).
         </p>
         
         <!-- User ID Display (MANDATORY for collaboration) -->
@@ -60,7 +61,7 @@
         <!-- Map Container -->
         <!-- FIX: Using relative path 'World map.png' now -->
         <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] bg-gray-200 rounded-xl shadow-2xl overflow-hidden cursor-pointer border-4 border-gray-300 transition-all duration-300 hover:border-blue-400" 
-             style="background-image: url('World_Image.png'); background-size: cover; background-position: center; max-height: 80vh;">
+             style="background-image: url('World map.png'); background-size: cover; background-position: center; max-height: 80vh;">
             
             <!-- DEBUGGING OVERLAY: Placeholder for image error -->
             <div id="image-error-overlay" class="absolute inset-0 bg-red-100/80 hidden items-center justify-center z-30 p-4">
@@ -102,27 +103,24 @@
     <!-- Message Input Modal -->
     <div id="message-modal" class="fixed inset-0 bg-gray-900 bg-opacity-70 hidden items-center justify-center z-50">
         <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Leave a Warm Wish</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Leave Your Signature</h2>
             
             <!-- Coordinate Display (Hidden, for debugging/clarity) -->
             <p class="text-sm text-gray-500 mb-4 hidden">Placing message at: <span id="coords-display"></span></p>
 
             <form id="message-form">
                 <div class="mb-4">
-                    <label for="input-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                    <label for="input-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name (Signature)</label>
                     <input type="text" id="input-name" required maxlength="25"
                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm"
                            placeholder="Enter your name">
                 </div>
-                <div class="mb-6">
-                    <label for="input-message" class="block text-sm font-medium text-gray-700 mb-1">Your Message (Max 150 chars)</label>
-                    <textarea id="input-message" rows="4" required maxlength="150"
-                              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm"
-                              placeholder="Type your heartfelt greeting here..."></textarea>
-                </div>
+                
+                <!-- REMOVED: Message input field -->
+                
                 <div class="flex justify-end space-x-3">
                     <button type="button" id="cancel-button" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition duration-150">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition duration-150 shadow-md">Send Message</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition duration-150 shadow-md">Send Signature</button>
                 </div>
             </form>
         </div>
@@ -184,7 +182,7 @@
                     instruction.textContent = "The card is now full! You can read all the wishes below.";
                 } else {
                     cardFullMessage.classList.add('hidden');
-                    instruction.textContent = `Click anywhere on the map below to leave a personalized message (${messageCount}/50 spots filled).`;
+                    instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`;
                 }
 
             } catch (error) {
@@ -200,7 +198,8 @@
             const newMessage = {
                 id: Date.now(), 
                 name: name, 
-                message: content, 
+                // Set message content to empty string since we removed the field
+                message: "", 
                 x: x, 
                 y: y,
                 timestamp: Date.now()
@@ -219,7 +218,7 @@
                 instruction.textContent = "The card is now full! You can read all the wishes below.";
             } else {
                 cardFullMessage.classList.add('hidden');
-                instruction.textContent = `Click anywhere on the map below to leave a personalized message (${messageCount}/50 spots filled).`;
+                instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`;
             }
         }
 
@@ -307,7 +306,7 @@
                     instruction.textContent = "The card is now full! You can read all the wishes below.";
                 } else {
                     cardFullMessage.classList.add('hidden');
-                    instruction.textContent = `Click anywhere on the map below to leave a personalized message (${messageCount}/50 spots filled).`;
+                    instruction.textContent = `Click anywhere on the map below to leave your personalized signature (${messageCount}/50 spots filled).`;
                 }
 
                 renderBubbles(messages);
@@ -319,7 +318,7 @@
         }
 
         async function saveMessage(name, content, x, y) {
-            // Only try to save if the database is available (i.e., db is not null)
+            // content is now always an empty string
             if (!db) {
                 // OFFLINE MODE: Save to local storage for persistence for this user only
                 saveLocalMessage(name, content, x, y);
@@ -330,6 +329,7 @@
             try {
                 const docRef = await addDoc(getMessagesCollectionRef(), {
                     name: name,
+                    // Sending empty string for message content
                     message: content,
                     x: x, // Normalized X position (0-100)
                     y: y, // Normalized Y position (0-100)
@@ -352,14 +352,12 @@
                 const x = parseFloat(msg.x);
                 const y = parseFloat(msg.y);
                 
-                const displayMessage = msg.message.length > 50 
-                                     ? msg.message.substring(0, 50) + '...' 
-                                     : msg.message;
-                
+                // Message content is ignored as we only show the name now
+
                 // --- MODIFIED: Uses 'transparent-bubble' class for styling ---
                 const bubble = document.createElement('div');
                 
-                bubble.className = `message-bubble absolute p-2 rounded-xl shadow-lg border border-gray-500 max-w-[150px] transition-all duration-300 hover:z-10 hover:shadow-xl hover:scale-[1.05] transparent-bubble`;
+                bubble.className = `message-bubble absolute p-2 rounded-xl shadow-lg max-w-[150px] transition-all duration-300 hover:z-10 hover:shadow-xl hover:scale-[1.05] transparent-bubble`;
                 bubble.style.left = `${x}%`;
                 bubble.style.top = `${y}%`;
                 bubble.style.transform = 'translate(-50%, -50%)'; 
@@ -367,21 +365,19 @@
                 // Store the full message data on the element for offline mode re-rendering
                 bubble.dataset.msg = JSON.stringify(msg);
 
-                // --- MODIFIED: Applied 'signature-name' class to the name for the signature look ---
+                // --- MODIFIED: ONLY displays the signature-name ---
                 bubble.innerHTML = `
-                    <p class="signature-name text-gray-800 mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
-                    <p class="text-xs text-gray-700 leading-tight cursive-text">${displayMessage}</p> 
-                    <button onclick="window.showFullMessage('${msg.id}', '${msg.name}', \`${msg.message.replace(/`/g, '\\`')}\`)" 
-                            class="mt-1 text-xs text-blue-800 hover:underline">Read All</button>
+                    <p class="signature-name text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">${msg.name}</p>
                 `;
                 
                 messageArea.appendChild(bubble);
             });
         }
         
-        // Expose function globally for the 'Read All' button
+        // Expose function globally for the 'Read All' button (Removed as we don't need it)
         window.showFullMessage = (id, name, message) => {
-            alert(`From: ${name}\n\nMessage:\n${message}`);
+            // Since we removed the message, this button is now unused
+            alert(`Signature: ${name}`);
         };
 
 
@@ -441,9 +437,10 @@
             }
 
             const name = document.getElementById('input-name').value.trim();
-            const content = document.getElementById('input-message').value.trim();
+            // Content is always an empty string now
+            const content = ""; 
 
-            if (name && content) {
+            if (name) {
                 saveMessage(name, content, newX, newY);
                 
                 // Hide and reset modal
