@@ -47,6 +47,10 @@
             /* Add pointer-events: none so clicks go through to the map-container listener */
             pointer-events: none; 
         }
+        /* NEW CSS: Hide the elements visually that shouldn't be captured but are needed for layout */
+        .capture-hide {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -65,12 +69,18 @@
             <span id="auth-status">Offline Mode (Local Save Only)</span>
         </div>
 
-        <!-- Map Container -->
-        <!-- UPDATED: Enhanced shadow and border -->
-        <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] rounded-xl shadow-2xl shadow-gray-500/50 overflow-hidden cursor-pointer border-4 border-gray-500 transition-all duration-300 hover:border-indigo-400" 
+        <!-- Map Container (The master aspect ratio container) -->
+        <!-- NOTE: Removed fixed border/shadow. Now applied to #image-border-wrapper -->
+        <div id="map-container" class="relative w-full max-w-5xl aspect-[3/2] overflow-hidden cursor-pointer" 
              style="max-height: 80vh;">
             
-            <!-- NEW: Image tag for precise dimension tracking -->
+            <!-- NEW: The visible border that will dynamically hug the image -->
+            <div id="image-border-wrapper" class="absolute shadow-2xl shadow-gray-500/50 border-4 border-gray-500 rounded-xl transition-all duration-300 hover:border-indigo-400"
+                 style="/* JS will set top, left, width, height here */">
+            </div>
+
+            <!-- Image Tag -->
+            <!-- The image must cover the full container for the positioning logic to work -->
             <img id="map-image" src="World map.png" alt="World Map" class="absolute inset-0 w-full h-full">
             
             <!-- DEBUGGING OVERLAY: Placeholder for image error -->
@@ -81,8 +91,8 @@
                 </p>
             </div>
             
-            <!-- Dynamic Message Bubbles Area (This is the clickable layer) -->
-            <div id="message-area" class="absolute inset-0">
+            <!-- Dynamic Message Bubbles Area (This is the clickable layer that will be sized to the image) -->
+            <div id="message-area" class="absolute">
                 <!-- Bubbles will be injected here -->
             </div>
             
@@ -186,6 +196,7 @@
         const mapContainer = document.getElementById('map-container');
         const mapImage = document.getElementById('map-image'); 
         const messageArea = document.getElementById('message-area');
+        const imageBorderWrapper = document.getElementById('image-border-wrapper'); // NEW
         const messageModal = document.getElementById('message-modal');
         const messageForm = document.getElementById('message-form');
         const cancelButton = document.getElementById('cancel-button');
@@ -244,6 +255,40 @@
                 visibleWidth = 100;
                 visibleHeight = visiblePercentH;
             }
+            
+            // --- APPLY DYNAMIC CLIPPING/BORDER SIZING ---
+            // 1. Position the border wrapper to hug the image
+            imageBorderWrapper.style.left = `${visibleXMin}%`;
+            imageBorderWrapper.style.top = `${visibleYMin}%`;
+            imageBorderWrapper.style.width = `${visibleWidth}%`;
+            imageBorderWrapper.style.height = `${visibleHeight}%`;
+            
+            // 2. Position the message area (clickable layer) to match the image bounds
+            messageArea.style.left = `${visibleXMin}%`;
+            messageArea.style.top = `${visibleYMin}%`;
+            messageArea.style.width = `${visibleWidth}%`;
+            messageArea.style.height = `${visibleHeight}%`;
+            
+            // 3. Position the image error overlay to match the image bounds
+            imageErrorOverlay.style.left = `${visibleXMin}%`;
+            imageErrorOverlay.style.top = `${visibleYMin}%`;
+            imageErrorOverlay.style.width = `${visibleWidth}%`;
+            imageErrorOverlay.style.height = `${visibleHeight}%`;
+            
+            // 4. Position the loading overlay and card full message to match the image bounds
+            loadingOverlay.style.left = `${visibleXMin}%`;
+            loadingOverlay.style.top = `${visibleYMin}%`;
+            loadingOverlay.style.width = `${visibleWidth}%`;
+            loadingOverlay.style.height = `${visibleHeight}%`;
+            
+            cardFullMessage.style.left = `${visibleXMin}%`;
+            cardFullMessage.style.top = `${visibleYMin}%`;
+            cardFullMessage.style.width = `${visibleWidth}%`;
+            cardFullMessage.style.height = `${visibleHeight}%`;
+
+            // We must now visually clip the underlying image element to prevent it from showing outside the new boundaries.
+            // Since the image is background-size:contain, it's already cropped by the container. We don't need clip-path here.
+            // We just need to ensure the mapImage z-index is lower than the border wrapper.
         }
 
         // --- LOCAL STORAGE FUNCTIONS (for Offline Mode) ---
@@ -487,14 +532,15 @@
             cardFullMessage.style.display = 'none';
 
             // --- Capture Fix: Temporarily set overflow to visible for accurate capture ---
+            // Hide the outer aspect ratio container's overflow property to prevent clipping.
             const originalOverflow = mapContainer.style.overflow;
             mapContainer.style.overflow = 'visible';
             
-            // Capture the content with HIGH RESOLUTION (scale: 2)
-            const canvas = await html2canvas(mapContainer, { 
+            // Target the IMAGE BORDER WRAPPER for capture, as it's perfectly sized to the image.
+            const canvas = await html2canvas(imageBorderWrapper, { 
                 useCORS: true, 
                 backgroundColor: null,
-                scale: 2 
+                scale: 2 // High Resolution
             });
 
             // --- Restore original state ---
